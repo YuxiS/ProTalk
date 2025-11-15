@@ -1,0 +1,1 @@
+from .FVD.frechet_video_distance import frechet_video_distance
