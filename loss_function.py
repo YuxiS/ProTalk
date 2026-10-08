@@ -5,7 +5,6 @@ import torch.nn.functional as F
 # import pdb
 from Visual.expression_loss import ExpressionLossNet
 from configparser import ConfigParser
-from Visual.lipreading.model import Lipreading
 from Visual.transform import Compose, Normalize, CenterCrop, SpeedRate, Identity
 from Visual import lossfunc
 # from Discrim.S

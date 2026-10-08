@@ -257,7 +257,7 @@ class ProsoResNet(nn.Module):
     
     def cal_gst_feature(self, mels, length):
         with torch.no_grad():
-            gst_embedding = self.gst(mels, torch.tensor(length).cuda())
+            gst_embedding = self.gst(mels, torch.as_tensor(length, device=mels.device))
             gst_embedding = gst_embedding.repeat(1, mels.shape[1], 1) #（B, T）
             gst_embedding = self.gst_transfrom(gst_embedding)
         mask = torch.zeros(mels.shape[0], mels.shape[1], gst_embedding.shape[-1])
@@ -355,7 +355,7 @@ class ProsoLinear(nn.Module):
     
     def cal_gst_feature(self, mels, length):
         with torch.no_grad():
-            gst_embedding = self.gst(mels, torch.tensor(length).cuda())
+            gst_embedding = self.gst(mels, torch.as_tensor(length, device=mels.device))
             gst_embedding = gst_embedding.repeat(1, mels.shape[1], 1) #（B, T）
             gst_embedding = self.gst_transfrom(gst_embedding)
         mask = torch.zeros(mels.shape[0], mels.shape[1], gst_embedding.shape[-1])

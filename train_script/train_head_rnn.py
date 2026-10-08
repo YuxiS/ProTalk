@@ -15,6 +15,7 @@ from tensorboardX import SummaryWriter
 sys.path.append('..')
 sys.path.append('.')
 from hparams import create_hparams
+from runtime_utils import str2bool
 # from models_easy import AudioEncoder
 from vqvae.models.vqvae import VQVAE
 from CoeffDataset import AudioDataset, collate_fn, collate_fn_test
@@ -102,7 +103,7 @@ def test(model, dataloader, logger, epoch):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--hparams', type=str, default='/remote-home/yfsong/code/ProTalk/hparams.yaml')
+    parser.add_argument('--hparams', type=str, default='hparams.yaml')
     parser.add_argument("--batch_size", type=int, default= 512)
     parser.add_argument("--epochs", type=int, default= 500)
     parser.add_argument("--pose_dim", type=int, default=9)
@@ -110,14 +111,14 @@ if __name__=='__main__':
     parser.add_argument("--embedding_dim", type=int, default=256)
     parser.add_argument("--n_embeddings", type=int, default=1024)
     parser.add_argument("--beta", type=float, default=.25)
-    parser.add_argument('--local_rank', type=int)
+    parser.add_argument('--local_rank', '--local-rank', type=int, default=int(os.environ.get('LOCAL_RANK', 0)))
     parser.add_argument("--learning_rate", type=float, default=4e-4)
     parser.add_argument("--log_interval", type=int, default=20)
     parser.add_argument('--save_interval', type=int, default=20)
-    parser.add_argument('--save_dir', type=str, default='/remote-home/yfsong/code/ProTalk/weights/headrnn')
-    parser.add_argument('--distributed_run', type=bool, default=False)
-    parser.add_argument('--debug', type=bool, default=False)
-    parser.add_argument('--vae_weight', type=str, default='/remote-home/yfsong/code/ProTalk/weights/vqvae/VQVAE-window-2024-01-09-06_30/vqvae_epoch_999.pth')
+    parser.add_argument('--save_dir', type=str, default='weights/head_rnn')
+    parser.add_argument('--distributed_run', type=str2bool, default=False)
+    parser.add_argument('--debug', type=str2bool, default=False)
+    parser.add_argument('--vae_weight', type=str, default='weights/vqvae_epoch_999.pth')
 
     args = parser.parse_args()
     if args.local_rank==0 and not args.debug:
@@ -164,6 +165,8 @@ if __name__=='__main__':
     loss_pose_value = []
     loss_pose_delta_value = []
     for epoch in range(args.epochs):
+        if hasattr(train_loader.sampler, "set_epoch"):
+            train_loader.sampler.set_epoch(epoch)
         if args.local_rank==0:
             print("Epoch:{}".format(epoch))
         # for i, batch in enumerate(train_loader):
@@ -216,11 +219,10 @@ if __name__=='__main__':
                 print('Train loss:L1: {:6f}, L1_delta:{:6f}'.format(
                      np.mean(loss_pose_value[-args.log_interval:]),np.mean(loss_pose_delta_value[-args.log_interval:])
                 ))
-        if args.local_rank==0:
-            step_scheduler.step()
+        step_scheduler.step()
         # if args.local_rank==0:
         #     test(pose_model, val_loader, log_writer, epoch)
         if args.local_rank==0 and (epoch+1) % args.save_interval==0: 
             checkpoints = os.path.join(save_dir, 'pose_sampler_epoch_{}.pth'.format(epoch))
-            torch.save(pose_model.module.state_dict(), checkpoints)
+            torch.save((pose_model.module if args.distributed_run else pose_model).state_dict(), checkpoints)
         

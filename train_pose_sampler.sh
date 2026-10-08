@@ -6,4 +6,4 @@ export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
 exec "${PYTHON:-python}" -m torch.distributed.run \
   --nproc_per_node="${NPROC_PER_NODE:-1}" \
   --master_port="${MASTER_PORT:-12365}" \
-  --module "train_script.train_head_rnn" --hparams "${HPARAMS:-hparams.yaml}" --distributed_run true --batch_size 128 "$@"
+  --module "train_script.train_rnn" --hparams "${HPARAMS:-hparams.yaml}" --distributed_run true --input_features prosody --batch_size 128 "$@"

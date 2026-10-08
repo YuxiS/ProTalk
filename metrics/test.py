@@ -1,4 +1,5 @@
 import numpy as np
+from metrics.beat_scores import sbas
 import pickle 
 from scipy import linalg
 import json
@@ -92,16 +93,7 @@ def calc_db(keypoints, name='head'):
 
 
 def BA(music_beats, motion_beats):
-    motion_beats = motion_beats[0]
-    ba = 0
-    # assert len(music_beats)!=0,
-    for bb in music_beats:
-        ba += np.exp(-np.min((motion_beats - bb)**2) / 2 / 64)
-    # return (ba / len(music_beats))
-    bc = 0
-    for bd in motion_beats:
-        bc += np.exp(-np.min((music_beats - bd)**2) / 2 / 64)
-    return (ba / len(music_beats)) + (bc / len(motion_beats))
+    return sbas(music_beats, motion_beats[0])
 
 def calc_ba_score(keypoints, audio_file, mode='head'):
     motion_beats, length = calc_db(keypoints, mode)

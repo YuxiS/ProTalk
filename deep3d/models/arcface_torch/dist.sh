@@ -3,7 +3,7 @@ ip_list=("ip1" "ip2" "ip3" "ip4")
 config=wf42m_pfc03_32gpu_r100
 
 for((node_rank=0;node_rank<${#ip_list[*]};node_rank++));
-do 
+do
   ssh face@${ip_list[node_rank]} "cd `pwd`;PATH=$PATH \
   CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7 \
   python -m torch.distributed.launch \

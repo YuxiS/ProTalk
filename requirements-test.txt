@@ -1,0 +1,5 @@
+# CPU regression checks do not need face models, data, or CUDA.
+torch==2.2.2
+numpy==1.23.5
+scipy==1.10.1
+PyYAML==6.0.2

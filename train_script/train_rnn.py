@@ -15,6 +15,7 @@ from tensorboardX import SummaryWriter
 sys.path.append('..')
 sys.path.append('.')
 from hparams import create_hparams
+from runtime_utils import str2bool
 # from models_easy import AudioEncoder
 import wandb
 from vqvae.models.vqvae import VQVAE
@@ -56,7 +57,7 @@ def load_datasets(hparams):
     return train_loader, val_loader
 
 def test(model, dataloader, logger, epoch):
-    # model.eval()
+    model.eval()
     loss_list = []
     loss_pose_list = []
     loss_pose_delta_list = []
@@ -83,7 +84,8 @@ def test(model, dataloader, logger, epoch):
                     target_index.append(min_encoding_indices)
             target_index = torch.cat(target_index, dim=1)
             prosody_data = torch.cat([f0, energy], dim=2) #[B, T, C]
-            proso_index = pose_model(prosody_data, audio_length)
+            features = prosody_data if args.input_features == "prosody" else mel[:, :, :80]
+            proso_index = model(features, audio_length)
             pred_index = proso_index[:, ::8, :]
             # sampled_index = pose_model(mel[:, :, :80], audio_length)
             #################################################
@@ -154,13 +156,14 @@ def test(model, dataloader, logger, epoch):
     logger.add_scalar('Test L1 Pose', np.mean(loss_pose_list), epoch)
     logger.add_scalar('Test L1 Pose Delta', np.mean(loss_pose_delta_list), epoch)
     print('Test Cross loss:{:6f} L1 Pose:{:6f} L1 pose delta: {:6f}'.format(np.mean(loss_list), np.mean(loss_pose_list), np.mean(loss_pose_delta_list)))
-    # model.train()
+    model.train()
     # dist.barrier()
     
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--hparams', type=str, default='/remote-home/yfsong/code/ProTalk/hparams.yaml')
+    parser.add_argument('--input_features', choices=['mfcc', 'prosody'], default='mfcc')
+    parser.add_argument('--hparams', type=str, default='hparams.yaml')
     parser.add_argument("--batch_size", type=int, default= 512)
     parser.add_argument("--epochs", type=int, default= 500)
     parser.add_argument("--pose_dim", type=int, default=9)
@@ -168,14 +171,14 @@ if __name__=='__main__':
     parser.add_argument("--embedding_dim", type=int, default=256)
     parser.add_argument("--n_embeddings", type=int, default=1024)
     parser.add_argument("--beta", type=float, default=.25)
-    parser.add_argument('--local_rank', type=int)
+    parser.add_argument('--local_rank', '--local-rank', type=int, default=int(os.environ.get('LOCAL_RANK', 0)))
     parser.add_argument("--learning_rate", type=float, default=4e-4)
     parser.add_argument("--log_interval", type=int, default=20)
     parser.add_argument('--save_interval', type=int, default=20)
-    parser.add_argument('--save_dir', type=str, default='/remote-home/yfsong/code/ProTalk/weights/headrnn')
-    parser.add_argument('--distributed_run', type=bool, default=False)
-    parser.add_argument('--debug', type=bool, default=False)
-    parser.add_argument('--vae_weight', type=str, default='/remote-home/yfsong/code/ProTalk/weights/vqvae/VQVAE-window-2024-01-09-06_30/vqvae_epoch_999.pth')
+    parser.add_argument('--save_dir', type=str, default='weights/rnn')
+    parser.add_argument('--distributed_run', type=str2bool, default=False)
+    parser.add_argument('--debug', type=str2bool, default=False)
+    parser.add_argument('--vae_weight', type=str, default='weights/vqvae_epoch_999.pth')
 
     args = parser.parse_args()
     hparams = create_hparams(yaml_file=args.hparams)
@@ -197,7 +200,8 @@ if __name__=='__main__':
     vae_model.eval()
     ########################################
     # pose_model = PoseSampler(2, args.n_embeddings, args.n_hiddens).cuda() # For prosody
-    pose_model = PoseSampler(80, args.n_embeddings, args.n_hiddens).cuda() # For Mel
+    pose_model = PoseSampler(2 if args.input_features == "prosody" else 80,
+                             args.n_embeddings, args.n_hiddens).cuda()
     # pose_model = AudioEncoder(hparams).cuda() #For exp 
     if args.distributed_run:
         pose_model = DDP(pose_model, device_ids=[args.local_rank])
@@ -223,6 +227,8 @@ if __name__=='__main__':
     loss_pose_value = []
     loss_pose_delta_value = []
     for epoch in range(args.epochs):
+        if hasattr(train_loader.sampler, "set_epoch"):
+            train_loader.sampler.set_epoch(epoch)
         if args.local_rank==0:
             print("Epoch:{}".format(epoch))
         prefetecher = DataPrefetcher(train_loader)
@@ -253,8 +259,9 @@ if __name__=='__main__':
             # prosody_data = torch.cat([f0, energy], dim=2) #[B, T, C] for prosody
             # proso_index = pose_model(prosody_data, audio_length)
             ####################################
-            prosody_data = mel # for mel
-            proso_index = pose_model(mel[:, :, :80], audio_length) # for mel
+            prosody_data = torch.cat([f0, energy], dim=2)
+            features = prosody_data if args.input_features == "prosody" else mel[:, :, :80]
+            proso_index = pose_model(features, audio_length)
             ################################################
             # index_mask = torch.zeros(size=(proso_index.shape[0], proso_index.shape[1], 1),
             #                          device=proso_index.get_device())
@@ -325,11 +332,10 @@ if __name__=='__main__':
                     )
                 )
             
-        if args.local_rank==0:
-            step_scheduler.step()
+        step_scheduler.step()
         # if args.local_rank==0:
         #     test(pose_model, val_loader, log_writer, epoch)
         if args.local_rank==0 and (epoch+1) % args.save_interval==0: 
             checkpoints = os.path.join(save_dir, 'pose_sampler_epoch_{}.pth'.format(epoch))
-            torch.save(pose_model.module.state_dict(), checkpoints)
+            torch.save((pose_model.module if args.distributed_run else pose_model).state_dict(), checkpoints)
         

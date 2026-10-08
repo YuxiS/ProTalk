@@ -1,6 +1,14 @@
-source /remote-home/yfsong/.bashrc
-conda activate ProTalk
-python reference.py --ref_img $1 --driven_audio $2 --save_dir /remote-home/yfsong/code/ProTalk/test_res
-python ./Wav2Lip/inference.py --face /remote-home/yfsong/code/ProTalk/test_res/temp.mp4 --audio $2 --outfile /remote-home/yfsong/code/ProTalk/test_res/temp_wav2lip.mp4 
-conda activate FaceRefine  
-python ./PSFRGAN/inference_gfpgan.py -i /remote-home/yfsong/code/ProTalk/test_res/temp_wav2lip.mp4 -o /remote-home/yfsong/code/ProTalk/test_res/result.mp4
+#!/usr/bin/env bash
+set -euo pipefail
+if (( $# < 2 )); then
+  echo 'Usage: bash generate.sh REFERENCE_IMAGE DRIVING_AUDIO [reference.py options...]' >&2
+  exit 2
+fi
+reference_image="$1"
+driving_audio="$2"
+shift 2
+# Resolve user inputs before changing the working directory.
+reference_image="$(cd "$(dirname "$reference_image")" && pwd)/$(basename "$reference_image")"
+driving_audio="$(cd "$(dirname "$driving_audio")" && pwd)/$(basename "$driving_audio")"
+cd "$(dirname "$0")"
+exec "${PYTHON:-python}" reference.py --ref_img "$reference_image" --driven_audio "$driving_audio" "$@"

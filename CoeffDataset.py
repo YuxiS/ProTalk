@@ -11,6 +11,7 @@ from yin import compute_yin
 # from PIL import Image
 from utils import to_gpu
 from proso_features import Energy
+from runtime_utils import minmax_normalize
 from torchvision import transforms
 import audio_wav2lip
 from glob import glob
@@ -231,8 +232,8 @@ class AudioDataset(torch.utils.data.Dataset):
         energy = self.get_energy(np.array(wav))
         energy = torch.from_numpy(energy).unsqueeze(0)
         #############
-        f0 = (f0-f0.min())/(f0.max()-f0.min())
-        energy = (energy-energy.min())/(energy.max()-energy.min())
+        f0 = minmax_normalize(f0)
+        energy = minmax_normalize(energy)
         ##############
 
         # 调整f0和energy的长度，使其和视频长度相匹配

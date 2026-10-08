@@ -19,6 +19,7 @@ import torch.nn as nn
 from torch.optim import lr_scheduler
 from loss_function import CoffLoss, ExpLoss, ImgLoss
 from hparams import create_hparams
+from runtime_utils import str2bool
 import os
 import numpy as np
 from utils import draw_keypoints
@@ -33,7 +34,6 @@ import wandb
  
 warnings.filterwarnings('ignore')
 os.environ["CUDA_LAUNCH_BLOCKING"]='1'
-os.environ['TORCH_HOME'] = '/remote-home/yfsong/.cache/torch/hub/checkpoints'
 # os.environ['CUDA_VISIBLE_DEVICES'] = '0, 1, 2, 3'
 
 # torch.autograd.set_detect_anomaly(True)
@@ -53,7 +53,8 @@ def initModel(hparams, opt):
     # audio_model = ProsoLinear(hparams, 244, pro_channels=2, out_channels=64)
     # audio_model = ProsoResNet(hparams, 244, pro_channels=2, out_channels=64)
 
-    audio_model = ResNet(244, 64) # No Prosody
+    audio_model = (ProsoResNet(hparams, 244, 2, 64) if opt.prosody
+                   else ResNet(244, 64))
     # audio_model.load_state_dict(torch.load(hparams.audio_weight)['audio_model_with_exp'])
 
     pose_encooder = PoseGEN(hparams.PoseModel.in_dim, hparams.PoseModel.n_embeddings, 
@@ -66,7 +67,7 @@ def save_checkpoints(audio_model, epoch, save_dir):
     print("Saving model and optimizer state at iteration {} to {}".format(
         epoch, save_dir))
     torch.save({'iteration': epoch,
-                'audio_model': audio_model.module.state_dict()}, save_dir)
+                'audio_model': (audio_model.module if hasattr(audio_model, 'module') else audio_model).state_dict()}, save_dir)
 def draw_batch_KeyPoints(imgs,  keypoints):
     """
     imgs :[B, T, 3, w, h]
@@ -237,6 +238,8 @@ def training_loop(opt):
     ##############################
     i = 0
     for epoch in range(hparams.epoch_offset, hparams.epochs):
+        if hasattr(train_loader.sampler, "set_epoch"):
+            train_loader.sampler.set_epoch(epoch)
         if opt.local_rank==0:
             print("Epoch:{}".format(epoch))
         for batch in train_loader:
@@ -259,7 +262,8 @@ def training_loop(opt):
             # 参数预测
             #############################
             # coff_exp_pred = audio_model(mel, local_prosody, audio_length) # for prosody
-            coff_exp_pred = audio_model(mel, audio_length) # for no prosody
+            coff_exp_pred = (audio_model(mel, local_prosody, audio_length) if opt.prosody
+                             else audio_model(mel, audio_length))
             # coff_pose_pred = pose_model(local_prosody, audio_length)
             coff_pose = coff_dynamic[:, :, -6:]
             # coff_crop_pred = coff_pose_pred[:, :, -3:]
@@ -387,104 +391,12 @@ def training_loop(opt):
                 # logger.log_training(coff_exp.item(), coff_delta_exp.item(),
                 #                     coff_pose.item(), coff_trans.item(),
                 #                     loss_GAN_mean, loss_exp_mean, img_show, iteration)
-        if opt.local_rank == 0:
-            step_scheduler.step()
+        step_scheduler.step()
             # step_D_scheduler.step()
         if opt.local_rank == 0 and (epoch+1) % hparams.iters_save_weight == 0: 
             checkpoints = os.path.join(output_directory, "checkpoint_epoch_{}.pth".format(epoch))
             save_checkpoints(audio_model, iteration, checkpoints)
      
-
-
-
-def validate(audio_model,val_loader, loss_fun_coff, logger, iteration):
-    audio_model.eval()
-    with torch.no_grad():
-
-        i = 0
-        coff_exp_mean = 0.
-        coff_exp_delta_mean = 0.
-        coff_pose_mean = 0.
-        coff_pose_delta_mean = 0.
-        # loss_l1_mean = 0.
-        # loss_lpips_mean = 0.
-        # ssim_render_mean = 0.
-        # ssim_retail_mean = 0.
-        # while batch is not None:
-        frame_index = range(0, 16, 2)
-        coeff_3dmm_forward = []
-        real_coeff_forward = []
-        for batch in val_loader:
-            mel, f0, coff_padded, mel_window, f0_window, frames_index, video_length, coff_init= parse_batch(batch)
-            # 参数预测
-            coff_vect = torch.cat([coff_padded['exp'], 
-                                   coff_padded['angle'], coff_padded['trans']], dim=2)
-            coff_vect_pred = audio_model(
-                (mel, f0, coff_init['exp'], mel_window, f0_window, frames_index, video_length)
-            )
-            # pdb.set_trace()
-            _, coff_exp, coff_delta_exp, coff_pose, coff_delta_pose = loss_fun_coff(coff_vect_pred, coff_vect)
-            coff_exp_mean += coff_exp.item()
-            coff_exp_delta_mean += coff_delta_exp.item()
-            coff_pose_mean += coff_pose.item()
-            coff_pose_delta_mean += coff_delta_pose.item()
-            # coff_vect_pred[:,:,:-6] = coff_vect_pred[:,:,:-6]*7-3
-            # 3D渲染
-            # coff_padded['id'] = coff_padded['id'][:, :coff_vect.size(1), :]
-            # coff_padded['gamma'] = coff_padded['gamma'][:, :coff_vect.size(1), :]
-            # coff_padded['tex'] = coff_padded['tex'][:, :coff_vect.size(1), :]
-            # coff_padded['landmarks'] = coff_padded['landmarks'][:, :coff_vect.size(1), :, :]  # [B, T, 68, 2]
-            coeff_3dmm = torch.cat(
-                [coff_padded['id'], coff_vect_pred[:,:,:-6], coff_padded['tex'], coff_vect_pred[:,:,-6:-3],
-                 coff_padded['gamma'], coff_vect_pred[:,:,-3:]], dim=2)  # [B, T, D]
-            ##################生成真实数据查看####################
-            real_coeff = torch.cat([coff_padded['id'], coff_padded['exp'], coff_padded['tex'],
-                coff_padded['angle'], coff_padded['gamma'], coff_padded['trans']], dim=2)
-            if len(real_coeff_forward)<8:
-                real_coeff_forward.append(real_coeff[0, ...])
-            # real_coeff_forward = torch.cat(real_coeff_forward, dim=0)
-            ####################################################
-            
-            # landmarks_gt = []
-            # for b in range(4):
-            if len(coeff_3dmm_forward)<8:
-                coeff_3dmm_forward.append(coeff_3dmm[0, ...])
-                # landmarks_temp = coff_padded['landmarks'][b, frames_index[b], :].squeeze(0)
-                # landmarks_gt.append(landmarks_temp)
-            # landmarks_gt = torch.cat(landmarks_gt, dim=0)
-            # coeff_3dmm_forward = torch.cat(coeff_3dmm_forward, dim=0)
-            # B, T, C, W, H = frames.size()
-            # frames = frames.view(B * T, C, W, H).contiguous()
-            # pred_lm, pred_tex, pred_mask, pred_face = face_render.forward(coeff_3dmm_forward)
-            # _, loss_lm, loss_tex = face_render.compute_losses(pred_tex, pred_lm, landmarks_gt)
-            # loss_lm_mean += loss_lm.item()
-            # loss_tex_mean += loss_tex.item()
-
-            # 图像细化
-            
-            # render_faces = face_render.render_img(frames, pred_mask, pred_face)
-
-            # ssim_render_mean += ssim_render_img.item()
-            # ssim_retail_mean += ssim_retail_img.item()
-
-            i += 1
-            # batch = val_dataloader.next()
-
-        coff_exp_mean_value = coff_exp_mean/i
-        coff_exp_delta_mean_value = coff_exp_delta_mean/i
-        coff_pose_mean_value = coff_pose_mean/i
-        coff_pose_delta_mean_value = coff_pose_delta_mean/i
-        
-        print("Interation{} Val: coff_exp:{:6f} coff_delta_exp:{:6f} coff_pose:{:6f} ,coff_delta_pose:{:6f} ".format(
-            iteration, coff_exp_mean_value, coff_exp_delta_mean_value, 
-            coff_pose_mean_value, coff_pose_delta_mean_value))
-
-
-        logger.log_val(coff_exp_mean_value, coff_exp_delta_mean_value, coff_pose_mean_value, 
-        coff_pose_delta_mean_value, pred_face, real_face, iteration)
-
-        audio_model.train()
-        # retail_model.train()
 
 
 
@@ -494,17 +406,18 @@ if __name__ == '__main__':
     print(torch.backends.cudnn.version())
     print(torch.cuda.is_available())
     parser = argparse.ArgumentParser()
-    parser.add_argument('--hparams', type=str, default='./hparams.yaml')
-    parser.add_argument('--local_rank', type=int, default=0)
-    parser.add_argument('--distributed_run', type=bool, default=False)
-    parser.add_argument('--multi_node', type=bool, default=False)
+    parser.add_argument('--prosody', action='store_true', help='Use ProsoResNet; default is the historical no-prosody ablation')
+    parser.add_argument('--hparams', type=str, default='hparams.yaml')
+    parser.add_argument('--local_rank', '--local-rank', type=int, default=int(os.environ.get('LOCAL_RANK', 0)))
+    parser.add_argument('--distributed_run', type=str2bool, default=False)
+    parser.add_argument('--multi_node', type=str2bool, default=False)
     parser.add_argument('--master_addr', type=str)
     parser.add_argument('--master_port',  type=int)
     parser.add_argument('--name', type=str, default='face_recon', help='name of the experiment. It decides where to store samples and models')
     parser.add_argument('--phase', type=str, default='test', help='train, val, test, etc')
     parser.add_argument('--dataset_mode', type=str, default=None,
                         help='chooses how datasets are loaded. [None | flist]')
-    parser.add_argument('--bfm_folder', type=str, default='/remote-home/yfsong/code/prosody/StyleProsody/mellotron/deep3d/BFM')
+    parser.add_argument('--bfm_folder', type=str, default='deep3d/BFM')
     parser.add_argument('--bfm_model', type=str, default='BFM_model_front.mat', help='bfm model')
 
 
@@ -514,7 +427,7 @@ if __name__ == '__main__':
     parser.add_argument('--camera_d', type=float, default=10.)
     parser.add_argument('--z_near', type=float, default=5.)
     parser.add_argument('--z_far', type=float, default=15.)
-    parser.add_argument('--use_opengl', type=bool, nargs='?', const=True, default=False, help='use opengl context or not')
+    parser.add_argument('--use_opengl', type=str2bool, nargs='?', const=True, default=False, help='use opengl context or not')
 
 
     # loss weights
@@ -527,9 +440,9 @@ if __name__ == '__main__':
     parser.add_argument('--w_gamma', type=float, default=10.0, help='weight for gamma loss')
     parser.add_argument('--w_lm', type=float, default=1.6e-3, help='weight for lm loss')
     parser.add_argument('--w_reflc', type=float, default=5.0, help='weight for reflc loss')
-    parser.add_argument('--isTrain', type=bool, default=True)
+    parser.add_argument('--isTrain', type=str2bool, default=True)
     parser.add_argument('--device', type=int, default=0)
-    parser.add_argument('--debug', type=bool, default=False)
+    parser.add_argument('--debug', type=str2bool, default=False)
     parser.set_defaults(
         focal=1015., center=112., camera_d=10., use_last_fc=False, z_near=5., z_far=15.
     )

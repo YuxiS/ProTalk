@@ -27,8 +27,8 @@ class VAE(nn.Module):
 
     def load_weight(self, vae_weight, sampling_weight):
         if vae_weight is not None and sampling_weight is not None:
-            vae_weight = torch.load(vae_weight)
-            sampler_weight = torch.load(sampling_weight)
+            vae_weight = torch.load(vae_weight, map_location="cpu")
+            sampler_weight = torch.load(sampling_weight, map_location="cpu")
             self.codebook.load_state_dict(vae_weight['CodeBook'])
             self.decoder.load_state_dict(vae_weight['Decoder'])
             self.sampler.load_state_dict(sampler_weight)
@@ -84,7 +84,7 @@ class VAE(nn.Module):
             e_index:[B, 1]
 
         """
-        min_encodings = torch.zeros((e_index.shape[0], self.n_embeddings), dtype=torch.float).to(e_index.get_device())
+        min_encodings = torch.zeros((e_index.shape[0], self.n_embeddings), dtype=torch.float).to(e_index.device)
         min_encodings.scatter_(1, e_index.unsqueeze(1), 1)
         e_weights = self.codebook.embedding.weight
         z_q = torch.matmul(min_encodings, e_weights)

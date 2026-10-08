@@ -59,7 +59,7 @@ class VectorQuantizer(nn.Module):
         # find closest encodings
         min_encoding_indices = torch.argmin(d, dim=1).unsqueeze(1)
         min_encodings = torch.zeros(
-            min_encoding_indices.shape[0], self.n_e).cuda()
+            min_encoding_indices.shape[0], self.n_e, device=z.device, dtype=z.dtype)
         min_encodings.scatter_(1, min_encoding_indices, 1)
 
         # get quantized latent vectors
@@ -182,7 +182,7 @@ class VectorQuantizerEMA(nn.Module):
         # self.embedding.weight.data.normal_()
 
         self.register_buffer('ema_cluster_size', torch.zeros(self.n_e))
-        self.ema_w = nn.Parameter(torch.Tensor(self.n_e, self.e_dim))
+        self.ema_w = nn.Parameter(self.embedding.weight.detach().clone())
         # self.ema_w.data.normal_()
 
         self.decay = decay
@@ -201,21 +201,17 @@ class VectorQuantizerEMA(nn.Module):
         z_q = torch.matmul(min_encodings, self.embedding.weight).view(z.shape)  #(n*8,128)*(128,64)->(n*8,64)->(n,8,64)
 
         if istrain:
-            self.ema_cluster_size = self.decay * self.ema_cluster_size + \
-                                    (1 - self.decay) * torch.sum(min_encodings, 0)
-
-            # Laplace smoothing of the cluster size
-            n = torch.sum(self.ema_cluster_size.data)
-            self.ema_cluster_size = (
-                    (self.ema_cluster_size + self.epsilon) / (n + self.n_e * self.epsilon) * n
-                )
-
-            dw = torch.matmul(min_encodings.t(), z_flattened)
-            self.ema_w = nn.Parameter(
-                self.decay * self.ema_w + (1 - self.decay) * dw
-                )
-
-            self.embedding.weight = nn.Parameter(self.ema_w / self.ema_cluster_size.unsqueeze(1))
+            # EMA updates are state updates, not newly allocated optimizer parameters.
+            with torch.no_grad():
+                self.ema_cluster_size.mul_(self.decay).add_(
+                    torch.sum(min_encodings, 0), alpha=1 - self.decay)
+                n = self.ema_cluster_size.sum()
+                smoothed = ((self.ema_cluster_size + self.epsilon) /
+                            (n + self.n_e * self.epsilon) * n)
+                self.ema_cluster_size.copy_(smoothed)
+                dw = torch.matmul(min_encodings.t(), z_flattened)
+                self.ema_w.mul_(self.decay).add_(dw, alpha=1 - self.decay)
+                self.embedding.weight.copy_(self.ema_w / self.ema_cluster_size.unsqueeze(1))
 
         # compute loss for embedding
         loss = self.beta * torch.mean((z_q.detach() - z) ** 2)

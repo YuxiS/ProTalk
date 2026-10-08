@@ -90,8 +90,8 @@ class PoseSampler(nn.Module):
         # x = self.sampler(x)
         x = x.contiguous().permute(0, 2, 1)
         total_length = max(length)
-        h_0 = torch.rand((2*4, B, self.hidden_dim), dtype=torch.float).to(x.get_device())
-        c_0 = torch.rand((2*4, B, self.hidden_dim), dtype=torch.float).to(x.get_device())
+        h_0 = torch.rand((2*4, B, self.hidden_dim), dtype=torch.float).to(x.device)
+        c_0 = torch.rand((2*4, B, self.hidden_dim), dtype=torch.float).to(x.device)
         x = torch.nn.utils.rnn.pack_padded_sequence(x, lengths=length, batch_first=True, enforce_sorted=False)
         x, _ = self.sampler(x, (h_0, c_0))
         x, _ = torch.nn.utils.rnn.pad_packed_sequence(x, batch_first=True, total_length=total_length) 
@@ -102,7 +102,7 @@ class PoseSampler(nn.Module):
         ############################################
         # mask = torch.zeros_like(x)
         # if x.is_cuda:
-        #     mask = mask.to(x.get_device())
+        #     mask = mask.to(x.device)
         # # pdb.set_trace()
         # for i, l in enumerate(length):
         #     l = int(l//3)

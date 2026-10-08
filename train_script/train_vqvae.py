@@ -16,6 +16,7 @@ from tensorboardX import SummaryWriter
 sys.path.append('..')
 sys.path.append('.')
 from hparams import create_hparams
+from runtime_utils import str2bool
 from vqvae.models.vqvae import VQVAE
 from CoeffDataset import AudioDataset, collate_fn, collate_vq
 from vqvae.datasets.DataPreFetecher import DataPrefetcher
@@ -99,7 +100,7 @@ def test(model, test_loader, log_writer, epoch):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--hparams', type=str, default='/remote-home/yfsong/code/ProTalk/hparams.yaml')
+    parser.add_argument('--hparams', type=str, default='hparams.yaml')
     parser.add_argument("--batch_size", type=int, default=256)
     parser.add_argument("--epochs", type=int, default= 1000)
     parser.add_argument("--pose_dim", type=int, default=9)
@@ -107,14 +108,14 @@ if __name__=='__main__':
     parser.add_argument("--embedding_dim", type=int, default=256)
     parser.add_argument("--n_embeddings", type=int, default=1024)
     parser.add_argument("--beta", type=float, default=.25)
-    parser.add_argument('--local_rank', type=int, default=0)
+    parser.add_argument('--local_rank', '--local-rank', type=int, default=int(os.environ.get('LOCAL_RANK', 0)))
     parser.add_argument("--learning_rate", type=float, default=1e-4)
     parser.add_argument("--log_interval", type=int, default=1)
     parser.add_argument('--save_interval', type=int, default=20)
-    parser.add_argument('--save_dir', type=str, default='/remote-home/yfsong/code/ProTalk/checkpoints/vqvae')
-    parser.add_argument('--distributed_run', type=bool, default=False)
-    parser.add_argument('--log_dir', type=str, default='/remote-home/yfsong/code/prosody/StyleProsody/mellotron/runs/Logs_VQVAE')
-    parser.add_argument('--debug', type=bool, default=False)
+    parser.add_argument('--save_dir', type=str, default='weights/vqvae')
+    parser.add_argument('--distributed_run', type=str2bool, default=False)
+    parser.add_argument('--log_dir', type=str, default='runs/train_vqvae')
+    parser.add_argument('--debug', type=str2bool, default=False)
 
     args = parser.parse_args()
     hparams = create_hparams(yaml_file=args.hparams)
@@ -161,6 +162,8 @@ if __name__=='__main__':
         }
 
     for epoch in range(args.epochs):
+        if hasattr(train_loader.sampler, "set_epoch"):
+            train_loader.sampler.set_epoch(epoch)
         if args.local_rank==0:
             print("Epoch:{}".format(epoch))
         time.sleep(0.003)

@@ -71,7 +71,7 @@ def main():
         '-i',
         '--input',
         type=str,
-        default='/remote-home/yfsong/code/prosody/StyleProsody/GFPGAN-master/videos',
+        default='results/gfpgan_input',
         help='Input image or folder. Default: inputs/whole_imgs')
     parser.add_argument('-o', '--output', type=str, default='temp', help='Output folder. Default: results')
     # we use version to select models, which is more user-friendly
@@ -95,8 +95,6 @@ def main():
         default='auto',
         help='Image extension. Options: auto | jpg | png, auto means using the same extension as inputs. Default: auto')
     parser.add_argument('-w', '--weight', type=float, default=0.5, help='Adjustable weights.')
-    args = parser.parse_args()
-
     args = parser.parse_args()
 
     # ------------------------ input & output ------------------------
