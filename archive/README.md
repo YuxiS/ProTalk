@@ -3,7 +3,7 @@
 On the author's machine, this directory retains the original research and
 experiment variants. **Only this README is tracked; the archived files are not
 committed or uploaded.** Remote users can inspect the pre-reorganization code in
-commit `0b2c2b2` and earlier Git history. They are outside the maintained package and excluded from its editable
+commit `2df0b4a` and earlier Git history. They are outside the maintained package and excluded from its editable
 installation. They may require missing weights, dataset-specific paths, optional
 dependencies or historical modules such as `models_easy`. They have not been
 validated as portable training/evaluation commands.

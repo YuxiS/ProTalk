@@ -6,7 +6,7 @@ entries. Original result checkpoints remain unavailable.
 
 ## Scope of this cleanup
 
-The baseline is commit `7840024`. The cleanup does not add a model, run a new
+The baseline is commit `23ddaf3`. The cleanup does not add a model, run a new
 experiment, regenerate videos or change manuscript results. Existing checkpoints
 retain their architecture and state-dict keys. The following fixes affect future
 runs and therefore must not be presented as retroactively validated experiments.
@@ -148,8 +148,9 @@ and the package is installed in editable mode.
 
 The current remote tree contains the maintained workflow and its dependencies.
 Historical scripts/results, unused upstream training/demos, notebooks and caches
-are local-only. To inspect their original source remotely, use commit `0b2c2b2`
-or earlier history. This is a normal cleanup commit, not a rewrite of Git history.
+are local-only. To inspect their original source remotely, use commit `2df0b4a`
+or earlier history. Repository history was subsequently rewritten to remove saved results, demo
+data and generated caches from every reachable commit.
 
 
 After reorganization, 18 CPU tests passed, including all maintained CLI help
@@ -159,3 +160,14 @@ loader and the three-stage training/resume/export check. Core computations in
 commit and were unchanged apart from imports. Pre-reorganization synthetic exports
 also loaded in the new package and produced finite outputs. A two-process VQ-VAE
 run through the reorganized module completed training, validation and export.
+
+
+## Historical artifact removal (2026-10-08)
+
+The branch history was rewritten to remove 14 saved comparison-result arrays,
+three plot images, the historical notebook/CIFAR demo archive, Python bytecode,
+notebook checkpoints and personal editor/cache files (74 historical paths total).
+The maintained source tree was verified identical before documentation updates.
+Original history is backed up outside the repository and is not uploaded.
+Existing clones from before this rewrite should be replaced with a fresh clone
+or deliberately reconciled; merging old history would reintroduce removed files.
