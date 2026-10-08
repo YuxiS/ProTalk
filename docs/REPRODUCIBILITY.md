@@ -1,7 +1,7 @@
 # Code review and reproducibility notes
 
 The initial review below describes the historical loops. For current supported
-training, use `training/` and [TRAINING.md](TRAINING.md), not the archival Python
+training, use `protalk/training/` and [TRAINING.md](TRAINING.md), not the archival Python
 entries. Original result checkpoints remain unavailable.
 
 ## Scope of this cleanup
@@ -13,11 +13,11 @@ runs and therefore must not be presented as retroactively validated experiments.
 
 ## Fixed issues
 
-- `hparams.py` imported a missing, unused Tacotron `text.symbols` package. The
+- `protalk/config.py` imported a missing, unused Tacotron `text.symbols` package. The
   loader now reads the YAML mapping directly, with a repo-relative default.
 - Inference previously ignored expression checkpoint CLI options and embedded
   server paths for all checkpoints. All three learned components now take the
-  supplied paths. `inference.py` now uses the supplied image/audio instead of a
+  supplied paths. `archive/inference/later_preset.py` now uses the supplied image/audio instead of a
   hardcoded example. Output directories are created before writing.
 - `shapee` in coefficient length alignment caused an exception for a shorter
   pose sequence. Both sequences now trim to their shared length, with a minimum
@@ -42,7 +42,7 @@ runs and therefore must not be presented as retroactively validated experiments.
 - The unused expression validation function used a removed batch parser and an
   incompatible forward signature. It was removed; no replacement validation or
   claimed evaluation has been added.
-- `loss_function.py` no longer imports an unused ESPnet lipreading model.
+- `archive/training/loss_function.py` no longer imports an unused ESPnet lipreading model.
 - Metrics load optional FVD dependencies lazily. BAS/SBAS formulas now have a
   shared implementation, retaining original orientation, sigma and sum scaling.
 - Shell commands quote paths, stop on errors, use repo-relative entries and avoid
@@ -53,12 +53,13 @@ runs and therefore must not be presented as retroactively validated experiments.
 
 ## Details requiring care when interpreting the paper
 
-1. **Inference presets differ.** `reference.py` uses epochs 99/499/99 and mean/std;
-   `inference.py` uses 79/999/399 and mean_wild/std_wild. Pose scaling, reference
+1. **Historical inference presets differ.** Original `reference.py` used epochs
+   99/499/99 and mean/std; the later preset used 79/999/399 and mean_wild/std_wild.
+   Maintained generation now defaults to the newly trained best exports. Pose scaling, reference
    offsets and smoothing differ as listed in `ASSETS.md`. The correct preset and
    released checkpoints behind each result remain to be identified by the author.
 2. **The stored BAS implementation is directional.** It averages over audio beats
-   and finds nearest motion beats. The symmetric implementation in `metrics/test.py`
+   and finds nearest motion beats. The symmetric implementation in `archive/metrics/test.py`
    is the sum of both directions, with range [0, 2]. It has not been divided by 2.
    Existing comparison/ablation wrappers call the directional implementation.
    None of these files proves which implementation generated a manuscript table.
@@ -71,7 +72,7 @@ runs and therefore must not be presented as retroactively validated experiments.
    by comparison scripts; the new pure functions instead raise ValueError.
 4. **Gaussian smoothing** uses a normalized size-5 kernel, std=3, valid grouped
    convolution and two repeated boundary values at each end. Expression smoothing
-   is active in both entries; pose smoothing is active only in `inference.py`.
+   is active in both entries; pose smoothing is active only in `archive/inference/later_preset.py`.
 5. **GST position embedding** is computed and masked in `cal_gst_feature`, but the
    returned tensor is the repeated global embedding. The positional tensor is not
    consumed. This existing behavior remains unchanged and should be reconciled
@@ -82,11 +83,11 @@ runs and therefore must not be presented as retroactively validated experiments.
    paths when describing the training implementation.
 7. **Training is not yet certified reproducible.** The archival VQ-VAE loader hardcodes batch
    1024 while its CLI default is 256; this was left unchanged. Validation is not
-   invoked by the archival main training loops. The maintained `training.run`
+   invoked by the archival main training loops. The maintained `protalk.training.run`
    entry validates every epoch and honors configured batch sizes. The MFCC pose ablation still uses
    a stride-3 fuse layer designed for prosody (three samples per frame), so its
    time-length protocol needs author verification before running that ablation.
-   Old `train_sampler.py` references missing `models_easy` and `TextMelLoader`;
+   Old `archive/training/train_script/train_sampler.py` references missing `models_easy` and `TextMelLoader`;
    it is an archival experiment, not the supported pose-sampler entry.
 8. **Stochastic sampling** initializes the head LSTM state with random tensors,
    and the sampler module sets a time-based CUDA seed at import. These historical
@@ -113,7 +114,7 @@ pipeline are not a tested environment lockfile.
 A new portable preparation/training package supports JSONL paths, raw MAT/NPZ
 inputs, cached MFCC/prosody arrays and training-only normalization statistics.
 It trains the existing expression/VQ-VAE/sampler network classes, validates each
-epoch and exports checkpoints accepted by `reference.py`/PoseGEN. It saves
+epoch and exports checkpoints accepted by `protalk.inference.generate`/PoseGEN. It saves
 optimizer, scheduler and per-rank RNG states for resume and synchronizes EMA
 codebook updates across distributed ranks.
 
@@ -132,3 +133,29 @@ runs of all three stages also completed training, validation and checkpoint savi
 use synthetic data and reduced pose dimensions. Full CUDA training, external
 checkpoint compatibility, coefficient extraction and video quality remain
 unverified. CI runs the CPU regression suite; no trained weights are supplied.
+
+
+## Package reorganization (2026-10-08)
+
+Supported code now lives in `protalk/`; configuration, launchers and dependencies
+live in `configs/`, `scripts/` and `requirements/`. Historical experiments are
+preserved locally in `archive/` and excluded from the remote release. Third-party source and external assets are separate.
+Generated bytecode and the unrelated downloaded CIFAR demo archive have been
+removed from version control while retaining local files. See STRUCTURE.md for
+path changes. The new CLI supports help without loading CUDA reconstruction,
+and the package is installed in editable mode.
+
+
+The current remote tree contains the maintained workflow and its dependencies.
+Historical scripts/results, unused upstream training/demos, notebooks and caches
+are local-only. To inspect their original source remotely, use commit `0b2c2b2`
+or earlier history. This is a normal cleanup commit, not a rewrite of Git history.
+
+
+After reorganization, 18 CPU tests passed, including all maintained CLI help
+commands outside the checkout, default config lookup, Deep3D's namespaced dynamic
+loader and the three-stage training/resume/export check. Core computations in
+14 model/audio modules and the generation functions were compared with the prior
+commit and were unchanged apart from imports. Pre-reorganization synthetic exports
+also loaded in the new package and produced finite outputs. A two-process VQ-VAE
+run through the reorganized module completed training, validation and export.

@@ -22,6 +22,6 @@ cd "$wav2lip_root"
 cd "$repo_root"
 mkdir -p "$output/gfpgan_input" "$output/restored"
 cp "$output/lip_synced.mp4" "$output/gfpgan_input/lip_synced.mp4"
-"${GFPGAN_PYTHON:-python}" inference_gfpgan.py -i "$output/gfpgan_input" -o "$output/restored"
+"${GFPGAN_PYTHON:-python}" scripts/restore_video.py -i "$output/gfpgan_input" -o "$output/restored"
 ffmpeg -y -i "$output/restored/lip_synced.mp4" -i "$audio" \
   -map 0:v:0 -map 1:a:0 -c:v copy -c:a aac -shortest "$output/result.mp4"

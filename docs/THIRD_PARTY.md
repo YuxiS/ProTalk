@@ -6,13 +6,13 @@ license audit or a grant of redistribution rights.
 
 | Component | Evidence in this checkout |
 | --- | --- |
-| Deep3DFaceRecon_pytorch | Headers in `deep3d/models/base_model.py`, reconstruction modules |
-| PIRender | `face_utils/renders/PIRender/` |
-| Mellotron / GST | `modules.py`, `hparams.yaml`, GST loading in `stylemodel.py` |
-| PyTorch STFT | BSD 3-Clause notice in `stft.py` (Prem Seetharaman) |
-| EMOCA expression loss | `Visual/expression_loss.py` explicitly references EMOCA and MPG proprietary terms |
-| VQ-VAE implementation | Original attribution/readme retained under `vqvae/README.md` |
-| I3D / FVD | `metrics/FVD/pytorch_i3d_model/README.mb` and associated modules |
+| Deep3DFaceRecon_pytorch | Headers in `protalk/third_party/deep3d/models/base_model.py`, reconstruction modules |
+| PIRender | `protalk/third_party/face_utils/renders/PIRender/` |
+| Mellotron / GST | `protalk/models/gst.py`, `configs/model.yaml`, GST loading in `protalk/models/expression.py` |
+| PyTorch STFT | BSD 3-Clause notice in `protalk/audio/stft.py` (Prem Seetharaman) |
+| EMOCA expression loss | `protalk/third_party/emoca/expression_loss.py` explicitly references EMOCA and MPG proprietary terms |
+| VQ-VAE implementation | Original source references retained under `protalk/models/pose/UPSTREAM.md` |
+| I3D / FVD | Historical evaluation only; archived locally, excluded from the maintained remote tree |
 | Wav2Lip / GFPGAN / Real-ESRGAN | Optional external postprocessing; not bundled model weights |
 
 The EMOCA-derived header refers to a LICENSE file that is absent in this checkout.

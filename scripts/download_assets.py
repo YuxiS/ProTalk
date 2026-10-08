@@ -7,8 +7,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSETS = {
-    'reconstruction': ('https://github.com/OpenTalker/SadTalker/releases/download/v0.0.2/epoch_20.pth', 'deep3d/checkpoints/face_recon/epoch_20.pth'),
-    'landmarks': ('https://raw.githubusercontent.com/OpenTalker/SadTalker/main/src/config/similarity_Lm3D_all.mat', 'deep3d/BFM/similarity_Lm3D_all.mat'),
+    'reconstruction': ('https://github.com/OpenTalker/SadTalker/releases/download/v0.0.2/epoch_20.pth', 'assets/reconstruction/face_recon/epoch_20.pth'),
+    'landmarks': ('https://raw.githubusercontent.com/OpenTalker/SadTalker/main/src/config/similarity_Lm3D_all.mat', 'assets/bfm/similarity_Lm3D_all.mat'),
     'bfm-fitting': ('https://github.com/OpenTalker/SadTalker/releases/download/v0.0.2/BFM_Fitting.zip', 'weights/BFM_Fitting.zip'),
     'wav2lip': ('https://github.com/OpenTalker/SadTalker/releases/download/v0.0.2/wav2lip.pth', 'weights/wav2lip.pth'),
     'gfpgan': ('https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth', 'gfpgan/weights/GFPGANv1.4.pth'),

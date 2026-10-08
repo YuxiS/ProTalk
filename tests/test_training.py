@@ -5,9 +5,9 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from training.data import Moments, validate_sample
-from training.objectives import expression_loss, sampler_loss
-from training.smoke import smoke
+from protalk.training.data import Moments, validate_sample
+from protalk.training.objectives import expression_loss, sampler_loss
+from protalk.training.smoke import smoke
 
 
 class TrainingTests(unittest.TestCase):
@@ -54,8 +54,8 @@ class TrainingTests(unittest.TestCase):
 
     def test_raw_audio_features_have_the_inference_dimensions(self):
         from scipy.io.wavfile import write
-        from training.prepare import audio_features
-        from hparams import create_hparams
+        from protalk.training.prepare import audio_features
+        from protalk.config import create_hparams
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'tone.wav'
             samples = np.sin(2 * np.pi * 220 * np.arange(6000) / 22050).astype(np.float32)
@@ -67,7 +67,7 @@ class TrainingTests(unittest.TestCase):
 
     def test_frozen_renderer_still_backpropagates_to_semantics(self):
         torch.set_num_threads(1)
-        from face_utils.renders import PIRenderFaceGenerator
+        from protalk.third_party.face_utils.renders import PIRenderFaceGenerator
         renderer = PIRenderFaceGenerator().requires_grad_(False).eval()
         semantics = torch.randn(1, 73, 27, requires_grad=True)
         image = torch.randn(1, 3, 64, 64)

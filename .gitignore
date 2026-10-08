@@ -22,3 +22,15 @@ PSFRGAN/
 *.pt
 *.ckpt
 gfpgan/weights/
+
+# External assets, local datasets and editable-install metadata
+assets/bfm/
+assets/reconstruction/
+archive/pose/data/
+*.egg-info/
+build/
+dist/
+
+# Local historical backup; ship the maintained workflow only
+archive/*
+!archive/README.md

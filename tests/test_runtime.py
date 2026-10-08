@@ -8,12 +8,12 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from hparams import create_hparams
-from runtime_utils import align_coefficients, minmax_normalize, str2bool
-from metrics.beat_scores import bas, sbas
-from vqvae.models.quantizer import VectorQuantizer, VectorQuantizerEMA
-from vqvae.generate import VAE
-from vqvae.pose_sampler.posesample import PoseSampler
+from protalk.config import create_hparams
+from protalk.runtime import align_coefficients, minmax_normalize, str2bool
+from protalk.evaluation.beat_scores import bas, sbas
+from protalk.models.pose.vqvae.quantizer import VectorQuantizer, VectorQuantizerEMA
+from protalk.models.pose.generate import VAE
+from protalk.models.pose.sampler.posesample import PoseSampler
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -64,7 +64,7 @@ class RuntimeTests(unittest.TestCase):
             bas([0], [0], sigma=0)
 
     def test_gaussian_smoothing_keeps_channels_and_length(self):
-        kernel_fn = source_function("utils.py", "gaussian_kernel", {"np": np, "torch": torch, "nn": torch.nn})
+        kernel_fn = source_function("protalk/inference/smoothing.py", "gaussian_kernel", {"np": np, "torch": torch, "nn": torch.nn})
         kernel = kernel_fn(2, 2, 5, std=3)
         self.assertTrue(torch.allclose(kernel.sum(-1), torch.ones(2, 1)))
         x = torch.stack([torch.ones(9), torch.full((9,), 3.)]).unsqueeze(0)

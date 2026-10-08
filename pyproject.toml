@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=64,<81"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "protalk-research"
+version = "0.1.0"
+description = "ProTalk speech-driven talking-head research code"
+requires-python = ">=3.9,<3.10"
+
+[project.scripts]
+protalk = "protalk.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["protalk*"]
+exclude = ["archive*", "tests*"]

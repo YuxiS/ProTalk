@@ -8,9 +8,10 @@ Keep the historical results separate from newly trained checkpoints.
 
 ## Environment and a quick functional check
 
-Python 3.9, torch/torchvision/torchaudio 2.2.2/0.17.2/2.2.2 and NumPy 1.23.5 are
-used by CPU checks. Install `requirements-training.txt`. Run
-`python -m training.smoke` without downloading weights; add `--output /new/folder`
+Install the package with `python -m pip install -e . --no-deps` after installing
+its dependencies. Python 3.9, torch/torchvision/torchaudio 2.2.2/0.17.2/2.2.2 and NumPy 1.23.5 are
+used by CPU checks. Install `requirements/training.txt`. Run
+`python -m protalk smoke` without downloading weights; add `--output /new/folder`
 to retain synthetic fixtures. These fixtures are for program checks only.
 For reconstruction and generation install `requirements.txt` and build nvdiffrast
 with your CUDA toolchain. FFmpeg extracts audio and muxes the result.
@@ -32,13 +33,13 @@ path supplies a precomputed raw NumPy `(T,244)` array. MAT files must have:
 | `coeff` | `(T,257)`: identity 80, expression 64, texture 80, angle 3, lighting 27, translation 3 |
 | `transform_params` | `(T,5)`: original width, height, alignment scale, x translation, y translation |
 
-`training.extract` saves this format from aligned 256×256, 30-fps MP4 videos.
+`protalk extract` saves this format from aligned 256×256, 30-fps MP4 videos.
 Use `--checkpoint`, `--bfm` and `--device` for nondefault reconstruction assets.
 It skips existing MAT files; remove a particular cached file deliberately to redo
 it. It stops on missing faces or invalid resolution/frame rate. It does not align
 arbitrary input scenes; start from a consistently aligned dataset.
 
-`training.manifest` matches relative MP4 filenames with MAT and WAV filenames.
+`protalk manifest` matches relative MP4 filenames with MAT and WAV filenames.
 `--extract-audio` extracts missing mono 22050-Hz WAVs using FFmpeg and leaves
 existing audio files intact. Choose a new manifest output path on reruns.
 
@@ -61,8 +62,8 @@ paths; it cannot detect the same speaker saved under different filenames.
 ## Preparation
 
 ```bash
-python -m training.prepare --train data/train-raw.jsonl --val data/val-raw.jsonl \
-  --out data/prepared --hparams hparams.yaml
+python -m protalk prepare --train data/train-raw.jsonl --val data/val-raw.jsonl \
+  --out data/prepared --hparams configs/model.yaml
 ```
 
 This creates `samples/*.npz`, `train.jsonl`, `val.jsonl`, `mean_std/*.npy` and
@@ -119,23 +120,23 @@ edit paths and batch sizes, then check it. New runs refuse an output stage folde
 that already contains checkpoints; choose a fresh output or use `--resume`:
 
 ```bash
-python -m training.doctor --profile training --config configs/my-data.yaml
+python -m protalk doctor --profile training --config configs/my-data.yaml
 CUDA_VISIBLE_DEVICES=0 bash scripts/train_all.sh configs/my-data.yaml
 ```
 
 For staged/distributed training:
 
 ```bash
-TRAIN_CONFIG=configs/my-data.yaml CUDA_VISIBLE_DEVICES=0 NPROC_PER_NODE=1 bash train_style.sh
-TRAIN_CONFIG=configs/my-data.yaml CUDA_VISIBLE_DEVICES=0,1 NPROC_PER_NODE=2 bash train_vqvae.sh
-TRAIN_CONFIG=configs/my-data.yaml CUDA_VISIBLE_DEVICES=0 NPROC_PER_NODE=1 bash train_pose_sampler.sh
+TRAIN_CONFIG=configs/my-data.yaml CUDA_VISIBLE_DEVICES=0 NPROC_PER_NODE=1 bash scripts/train_expression.sh
+TRAIN_CONFIG=configs/my-data.yaml CUDA_VISIBLE_DEVICES=0,1 NPROC_PER_NODE=2 bash scripts/train_vqvae.sh
+TRAIN_CONFIG=configs/my-data.yaml CUDA_VISIBLE_DEVICES=0 NPROC_PER_NODE=1 bash scripts/train_sampler.sh
 ```
 
 The batch size is **per rank**, must be at least two, and training drops incomplete
 batches. Reduce it if the dataset has too few clips/windows. `max_frames` controls
 expression/sampler clip length (8–2048); VQ-VAE uses all full windows.
 `workers: 0` helps when debugging data loading. `PYTHON`, `MASTER_ADDR` and
-`MASTER_PORT` can override wrapper defaults. `train_all.sh` runs one process per
+`MASTER_PORT` can override wrapper defaults. `scripts/train_all.sh` runs one process per
 stage; use the stage wrappers for torchrun. Only single-node wrappers are supplied.
 
 Validation runs each epoch with fixed seeds and padding masks; it never updates
@@ -143,7 +144,7 @@ the codebook or optimization state. Validation summaries append to `metrics.json
 The selected best loss is a training diagnostic, not a manuscript metric.
 
 ```bash
-python -m training.run --stage expression --config configs/my-data.yaml \
+python -m protalk train --stage expression --config configs/my-data.yaml \
   --resume weights/retrained/expression/last-training.pth
 ```
 
@@ -160,7 +161,7 @@ by resume. GPU algorithms can remain nondeterministic despite recorded seeds.
 The base workflow requires no emotion checkpoint or renderer during training.
 For image/landmark/emotion supervision, set `expression.loss_profile: visual` and
 supply `pirender_weight` (`net_G_ema`), `bfm_folder` (`BFM_model_front.mat`) and a
-compatible `emotion_weight` (`state_dict`) used by `Visual/expression_loss.py`.
+compatible `emotion_weight` (`state_dict`) used by `protalk/third_party/emoca/expression_loss.py`.
 The original emotion checkpoint is not bundled; this option requires you to
 obtain a compatible asset and check its terms. Every manifest record must retain
 its aligned video.
@@ -168,8 +169,8 @@ its aligned video.
 Use a new output directory and warm-start your coefficient-trained model:
 
 ```bash
-python -m training.doctor --profile visual --config configs/visual.yaml
-python -m training.run --stage expression --config configs/visual.yaml \
+python -m protalk doctor --profile visual --config configs/visual.yaml
+python -m protalk train --stage expression --config configs/visual.yaml \
   --initialize weights/retrained/expression/best-inference.pth
 ```
 
@@ -188,11 +189,27 @@ Each stage exports `best-inference.pth` and `last-inference.pth`:
 expression contains `audio_model` plus metadata, VQ-VAE contains
 `Encoder/Decoder/CodeBook` plus metadata, and sampler is a bare state dict for
 legacy PoseGEN. Exports exclude optimizer state. New expression metadata sets
-`pose_scale: 1` for `reference.py`.
+`pose_scale: 1` for `protalk.inference.generate`.
 
-Run `generate.sh` as described in the README. For a reusable trained release,
+Run `scripts/generate.sh` as described in the README. For a reusable trained release,
 package all three matching inference exports, the exact hparams/config and the
 four normalization arrays, along with dataset/split provenance, training
 environment and instructions for external face/renderer assets. Do not distribute
 synthetic smoke-test weights as a trained release. See `docs/ASSETS.md` for
 public source links and compatibility limitations.
+
+
+## Optional restoration
+
+Wav2Lip and GFPGAN use separate environments and checkpoints:
+
+```bash
+export WAV2LIP_ROOT=/path/to/Wav2Lip
+export WAV2LIP_CHECKPOINT=/path/to/wav2lip.pth
+export WAV2LIP_PYTHON=/path/to/wav2lip/environment/bin/python
+export GFPGAN_PYTHON=/path/to/gfpgan/environment/bin/python
+bash scripts/postprocess.sh results/example/temp.mp4 /path/to/speech.wav results/example/postprocessed
+```
+
+The helper invokes `scripts/restore_video.py` for GFPGAN and muxes audio with
+FFmpeg. This optional pipeline has not been exercised with real assets.

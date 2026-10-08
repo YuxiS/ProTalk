@@ -1,5 +1,5 @@
 # Paths are resolved from the repository root. Copy this file for your dataset.
-hparams: hparams.yaml
+hparams: configs/model.yaml
 train_manifest: data/prepared/train.jsonl
 val_manifest: data/prepared/val.jsonl
 statistics: data/prepared/mean_std
@@ -22,7 +22,7 @@ expression:
   delta_weight: 1.0
   # Optional visual fine-tuning requires PIRender, BFM and expression-loss assets.
   pirender_weight: weights/pirender.pt
-  bfm_folder: deep3d/BFM
+  bfm_folder: assets/bfm
   emotion_weight: data/ResNet50/checkpoints/deca-epoch=01-val_loss_total/dataloader_idx_0=1.27607644.ckpt
   frames_per_clip: 4
   landmark_weight: 0.0001
