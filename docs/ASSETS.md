@@ -1,6 +1,6 @@
 # Required local assets
 
-No download link or published checkpoint is asserted here. Supply the exact
+Public third-party sources are listed below. Supply the exact
 checkpoints/statistics used for the selected experiment. Paths below are defaults
 or configurable through the shown option.
 
@@ -32,3 +32,22 @@ and their provenance must be supplied before claiming reproducibility.
 
 Epoch numbers are historical defaults, not evidence that these are the released
 weights or the weights behind a specific table. Use explicit paths to disambiguate.
+
+
+## SadTalker asset sources and compatibility
+
+Checked on 2026-10-08 against the official [download script](https://github.com/OpenTalker/SadTalker/blob/main/scripts/download_models.sh), [reconstruction loader](https://github.com/OpenTalker/SadTalker/blob/main/src/utils/preprocess.py), and [legacy release](https://github.com/OpenTalker/SadTalker/releases/tag/v0.0.2).
+
+| Asset | Source and local destination | Assessment |
+| --- | --- | --- |
+| epoch_20.pth | [Download](https://github.com/OpenTalker/SadTalker/releases/download/v0.0.2/epoch_20.pth); deep3d/checkpoints/face_recon/epoch_20.pth | Candidate reconstruction checkpoint: the ASTs of ReconNetWrapper, ResNet, BasicBlock and Bottleneck match this checkout, and the upstream loader uses net_recon. Actual loading is untested. |
+| similarity_Lm3D_all.mat | [Download](https://raw.githubusercontent.com/OpenTalker/SadTalker/main/src/config/similarity_Lm3D_all.mat); deep3d/BFM/similarity_Lm3D_all.mat | Shared alignment asset; does not replace the full BFM face model. |
+| BFM_Fitting.zip | [Download](https://github.com/OpenTalker/SadTalker/releases/download/v0.0.2/BFM_Fitting.zip) | Candidate fitting assets. Inspect archive contents and MAT fields before using; complete renderer compatibility is unverified. |
+| wav2lip.pth | [Download](https://github.com/OpenTalker/SadTalker/releases/download/v0.0.2/wav2lip.pth); weights/wav2lip.pth | Optional postprocessing; requires a matching Wav2Lip checkout and environment. |
+| GFPGANv1.4.pth | [Download](https://github.com/TencentARC/GFPGAN/releases/download/v1.3.0/GFPGANv1.4.pth); gfpgan/weights/GFPGANv1.4.pth | Optional restoration; source is the official GFPGAN project as linked by SadTalker. |
+| auido2exp, auido2pose, complete SadTalker safetensors | SadTalker-specific models | Cannot directly replace ProTalk expression, VQ-VAE or pose-sampler checkpoints. |
+| facevid2vid and mapping checkpoints | SadTalker facevid2vid/SPADE renderer | Cannot directly replace ProTalk PIRender, which expects net_G_ema. |
+
+No weights were downloaded in this inspection. The reconstruction checkpoint is approximately 289 MB, BFM fitting archive 404 MB, and Wav2Lip 436 MB. A structurally compatible reconstruction checkpoint is not proof that it was used for ProTalk's original results.
+
+SadTalker's modern safetensors bundle contains reconstruction tensors, but the current ProTalk loader does not extract that format. The legacy standalone checkpoint fits the existing loading contract. ProTalk-trained expression/VQ-VAE/sampler weights and normalization statistics must still be recovered; Mellotron GST and PIRender are separate dependencies. Asset terms remain separate from the repository license.
