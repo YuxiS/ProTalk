@@ -1,5 +1,9 @@
 # Code review and reproducibility notes
 
+The initial review below describes the historical loops. For current supported
+training, use `training/` and [TRAINING.md](TRAINING.md), not the archival Python
+entries. Original result checkpoints remain unavailable.
+
 ## Scope of this cleanup
 
 The baseline is commit `7840024`. The cleanup does not add a model, run a new
@@ -76,9 +80,10 @@ runs and therefore must not be presented as retroactively validated experiments.
    two squared mean losses; the active VQVAE uses the EMA quantizer, with a
    beta-weighted commitment term and EMA codebook updates. Do not conflate these
    paths when describing the training implementation.
-7. **Training is not yet certified reproducible.** VQ-VAE's loader hardcodes batch
+7. **Training is not yet certified reproducible.** The archival VQ-VAE loader hardcodes batch
    1024 while its CLI default is 256; this was left unchanged. Validation is not
-   invoked by the current main training loops. The MFCC pose ablation still uses
+   invoked by the archival main training loops. The maintained `training.run`
+   entry validates every epoch and honors configured batch sizes. The MFCC pose ablation still uses
    a stride-3 fuse layer designed for prosody (three samples per frame), so its
    time-length protocol needs author verification before running that ablation.
    Old `train_sampler.py` references missing `models_easy` and `TextMelLoader`;
@@ -101,3 +106,29 @@ EMA parameter identity, codebook lookup and pose-sampler forward shapes, plus
 Python and shell syntax checks. Full GPU training, rendering, restoration and
 paper-table reproduction were not run. Candidate requirements for the complete
 pipeline are not a tested environment lockfile.
+
+
+## Maintained retraining workflow (2026-10-08)
+
+A new portable preparation/training package supports JSONL paths, raw MAT/NPZ
+inputs, cached MFCC/prosody arrays and training-only normalization statistics.
+It trains the existing expression/VQ-VAE/sampler network classes, validates each
+epoch and exports checkpoints accepted by `reference.py`/PoseGEN. It saves
+optimizer, scheduler and per-rank RNG states for resume and synchronizes EMA
+codebook updates across distributed ranks.
+
+This is a new training recipe because original training assets are lost. Default
+scratch GST and coefficient supervision, reference-relative targets, masked losses
+and cross-entropy sampler training are explicit in TRAINING.md. The old decoded
+argmax penalty does not propagate gradients through code selection; it is not
+included in the maintained sampler objective. Optional visual fine-tuning freezes
+third-party networks but permits gradients to expression coefficients. No new
+model architecture or regenerated paper metric is claimed.
+
+CPU verification includes all three real network stages, validation, resumed
+sampler training, exported expression/GST/codebook/sampler loading, raw waveform
+feature dimensions and gradients through frozen PIRender. Two-process CPU Gloo
+runs of all three stages also completed training, validation and checkpoint saving. These checks
+use synthetic data and reduced pose dimensions. Full CUDA training, external
+checkpoint compatibility, coefficient extraction and video quality remain
+unverified. CI runs the CPU regression suite; no trained weights are supplied.

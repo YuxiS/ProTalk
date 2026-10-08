@@ -10,13 +10,13 @@ or configurable through the shown option.
 | Pose VQ-VAE | `--vae_weight` | `CodeBook`, `Decoder` (training also uses `Encoder`) |
 | Pose sampler | `--sampling_weight` | PoseSampler state dict |
 | PIRender | `--pirender_weight` | Dictionary containing `net_G_ema` |
-| Mellotron GST pretraining | YAML `gst_weight` | `state_dict` containing `gst.*` |
+| Mellotron GST pretraining | YAML `gst_weight` | Optional for `gst_init: pretrained` training only; `state_dict` containing `gst.*`. Inference loads GST from the expression export. |
 | Normalization statistics | YAML `mean_std_root` or `--mfcc_mean_std_root` | `mfcc_mean.npy`, `mfcc_std.npy`; `mean.npy`, `std.npy` for reference; `mean_wild.npy`, `std_wild.npy` for inference |
 | Basel face model assets | `--bfm_folder` (default `deep3d/BFM`) | `BFM_model_front.mat`, `similarity_Lm3D_all.mat`, and upstream auxiliary files if conversion is needed |
 | Reconstruction checkpoint | `--checkpoints_dir`, `--name`, `--epoch` | default `deep3d/checkpoints/face_recon/epoch_20.pth`, containing `net_recon` |
-| Reconstruction initialization | `--init_path` | default `deep3d/checkpoints/resnet50-0676ba61.pth` |
+| Reconstruction initialization | `--init_path` | Optional when a complete `net_recon` checkpoint is loaded; no separate ImageNet file required |
 | Landmark detector weights | face-alignment cache | Managed by face-alignment |
-| Expression-loss network | training only | `data/ResNet50/checkpoints/deca-epoch=01-val_loss_total/dataloader_idx_0=1.27607644.ckpt` |
+| Expression-loss network | optional visual fine-tuning only | `data/ResNet50/checkpoints/deca-epoch=01-val_loss_total/dataloader_idx_0=1.27607644.ckpt` |
 
 Standard deviations must be positive and finite. Use training-set statistics,
 not statistics computed on the test set. Feature extraction produces 244 values
@@ -50,4 +50,55 @@ Checked on 2026-10-08 against the official [download script](https://github.com/
 
 No weights were downloaded in this inspection. The reconstruction checkpoint is approximately 289 MB, BFM fitting archive 404 MB, and Wav2Lip 436 MB. A structurally compatible reconstruction checkpoint is not proof that it was used for ProTalk's original results.
 
-SadTalker's modern safetensors bundle contains reconstruction tensors, but the current ProTalk loader does not extract that format. The legacy standalone checkpoint fits the existing loading contract. ProTalk-trained expression/VQ-VAE/sampler weights and normalization statistics must still be recovered; Mellotron GST and PIRender are separate dependencies. Asset terms remain separate from the repository license.
+SadTalker's modern safetensors bundle contains reconstruction tensors, but the current ProTalk loader does not extract that format. The legacy standalone checkpoint fits the existing loading contract. Original ProTalk-trained expression/VQ-VAE/sampler weights and normalization statistics are unavailable. Train them and fit training statistics with `training/` instead; PIRender remains a separate dependency. Mellotron is optional when training GST from scratch. Asset terms remain separate from the repository license.
+
+
+## Assets for the maintained workflow
+
+Basic training on prepared arrays needs no third-party model checkpoint. For
+raw coefficient extraction and inference, acquire the face assets above and a
+PIRender checkpoint. The helper downloads explicitly selected public assets:
+
+```bash
+python scripts/download_assets.py reconstruction landmarks
+# Optional; this does not unpack or validate the archive as a complete BFM setup:
+python scripts/download_assets.py bfm-fitting
+```
+
+Downloads are skipped if the destination exists. Partial files use `.part` until
+complete; a sidecar records the source URL, size and calculated SHA256. This hash
+records what was received, not independent authentication of the published asset.
+Large asset downloads have not been exercised during cleanup.
+
+PIRender's [official README](https://github.com/RenYurui/PIRender) provides its
+[pretrained model archive](https://drive.google.com/file/d/1-0xOf6g58OmtKtEWJlU3VlnfRqPN9Uq7/view?usp=sharing).
+Unpack it, locate the face generator checkpoint (historically
+`epoch_00190_iteration_000400000_checkpoint.pt`) and copy it to `weights/pirender.pt`
+or configure `pirender_weight`/`--pirender_weight`. ProTalk's loader requires
+`net_G_ema` for its 73-channel face generator; actual downloaded checkpoint loading
+has not been tested in this environment.
+
+For BFM conversion follow the [Deep3DFaceRecon instructions](https://github.com/sicxu/Deep3DFaceRecon_pytorch).
+Obtain the original [BFM09 assets](https://faces.dmi.unibas.ch/bfm/main.php?nav=1-2&id=downloads)
+and upstream expression basis according to their terms, place the required
+conversion inputs in `deep3d/BFM`, and produce `BFM_model_front.mat` with the
+upstream-compatible converter in this checkout:
+
+```bash
+python -c "from deep3d.util.load_mats import transferBFM09; transferBFM09('deep3d/BFM')"
+```
+
+The converter also requires `std_exp.txt`, `BFM_front_idx.mat`, `BFM_exp_idx.mat`
+and `facemodel_info.mat` from the upstream fitting assets. The landmark MAT alone is
+insufficient. Inspect any SadTalker fitting archive before using it as this input.
+
+For optional frozen-GST training, Mellotron's [official README](https://github.com/NVIDIA/mellotron)
+links its [LibriTTS checkpoint](https://drive.google.com/open?id=1ZesPPyRRKloltRIuRnGZ2LIUEuMSVjkI).
+Point `gst_weight` in hparams to the downloaded file and select
+`expression.gst_init: pretrained`. Newly trained expression exports already
+contain GST parameters.
+
+For new exports, `generate.sh` uses `weights/retrained/<stage>/best-inference.pth`
+and `data/prepared/mean_std`. The historical preset table above describes old
+source defaults, not the maintained training recipe. New expression metadata
+selects a pose multiplier of 1 unless explicitly overridden.

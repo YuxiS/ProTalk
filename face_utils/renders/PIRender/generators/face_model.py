@@ -28,6 +28,10 @@ class FaceGenerator(nn.Module):
         driving_source, 
         stage=None
         ):
+        return self.forward_train(input_image, driving_source, stage)
+
+    def forward_train(self, input_image, driving_source, stage=None):
+        """Same renderer math, with gradients to the input semantics for fine-tuning."""
         if stage == 'warp':
             descriptor = self.mapping_net(driving_source)
             output = self.warpping_net(input_image, descriptor)

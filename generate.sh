@@ -11,4 +11,8 @@ shift 2
 reference_image="$(cd "$(dirname "$reference_image")" && pwd)/$(basename "$reference_image")"
 driving_audio="$(cd "$(dirname "$driving_audio")" && pwd)/$(basename "$driving_audio")"
 cd "$(dirname "$0")"
-exec "${PYTHON:-python}" reference.py --ref_img "$reference_image" --driven_audio "$driving_audio" "$@"
+exec "${PYTHON:-python}" reference.py --ref_img "$reference_image" --driven_audio "$driving_audio" \
+  --model_weight weights/retrained/expression/best-inference.pth \
+  --vae_weight weights/retrained/vqvae/best-inference.pth \
+  --sampling_weight weights/retrained/sampler/best-inference.pth \
+  --mfcc_mean_std_root data/prepared/mean_std "$@"

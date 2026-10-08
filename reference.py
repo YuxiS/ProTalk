@@ -149,7 +149,7 @@ def inference(opts):
         hparams.mean_std_root = args.mfcc_mean_std_root
     energy_processor = Energy(hparams.filter_length, hparams.hop_length, hparams.win_length)
     for path in (ref_data['ref_img'], ref_data['ref_audio'], args.model_weight,
-                 args.vae_weight, args.sampling_weight, args.pirender_weight, hparams.gst_weight):
+                 args.vae_weight, args.sampling_weight, args.pirender_weight):
         if not os.path.isfile(path):
             raise FileNotFoundError(f"Required asset missing: {path}")
     if not torch.cuda.is_available():
@@ -157,10 +157,10 @@ def inference(opts):
     torch.cuda.set_device(int(device_id))
     device = torch.device(f"cuda:{device_id}")
     os.makedirs(args.save_dir, exist_ok=True)
-    audio_exp_model = ProsoResNet(hparams, 244, 2, 64)
-    audio_exp_model.load_state_dict(torch.load(args.model_weight,
-                                                map_location='cpu')['audio_model'])
-    pose_sampler = PoseGEN(hparams.PoseModel.in_dim, 1024,
+    audio_exp_model = ProsoResNet(hparams, 244, 2, 64, load_gst=False)
+    expression_checkpoint = torch.load(args.model_weight, map_location='cpu')
+    audio_exp_model.load_state_dict(expression_checkpoint['audio_model'])
+    pose_sampler = PoseGEN(hparams.PoseModel.in_dim, hparams.PoseModel.n_embeddings,
         hparams.PoseModel.embedding_dim, hparams.PoseModel.n_hiddens, hparams.PoseModel.pose_dim,
         hparams.PoseModel.beta,
         args.vae_weight,
@@ -168,7 +168,7 @@ def inference(opts):
     pirender = PIRenderFaceGenerator()
     pirender.load_state_dict(torch.load(args.pirender_weight, map_location='cpu')['net_G_ema'])
     coeff_detector = CoeffDetector(args)
-    keypoint_detector = KeypointExtractor()
+    keypoint_detector = KeypointExtractor(device=f'cuda:{device_id}')
     base_coeff = getInitCoeff(ref_data['ref_img'], keypoint_detector, coeff_detector)
     base_3d_coeff, base_crop_coeff = base_coeff['Coeff'], base_coeff['Trans'][None, :]
     base_3d_coeff = torch.from_numpy(base_3d_coeff).to(device)
@@ -218,7 +218,8 @@ def inference(opts):
         coeff_exp = torch.cat([start_exp, coeff_exp_smooth, end_exp], dim=1)
         coeff_exp = coeff_exp + base_3d_coeff[:, :, 80:144]
         base_coeff_pose = torch.cat([base_3d_coeff[:, :, 224:227], base_3d_coeff[:, :, 254:257]], dim=2)
-        coeff_pose[:, :, :6] = coeff_pose[:, :, :6]*2 + base_coeff_pose # 让头部动作更明显
+        pose_scale = args.pose_scale if args.pose_scale is not None else expression_checkpoint.get('metadata', {}).get('pose_scale', 2.)
+        coeff_pose[:, :, :6] = coeff_pose[:, :, :6]*pose_scale + base_coeff_pose # 让头部动作更明显
         coeff_pose[:, :, -3:] = coeff_pose[:, :, -3:] + base_crop_coeff
 
         coeff_vect = torch.cat([coeff_exp, coeff_pose[:, :, :6]], dim=2)
@@ -247,6 +248,7 @@ if __name__=='__main__':
     args.add_argument('--model_weight', type=str, default='weights/style/checkpoint_epoch_99.pth')
     args.add_argument('--pirender_weight', type=str, default='weights/pirender.pt')
     args.add_argument('--mfcc_mean_std_root', type=str, default=None)
+    args.add_argument('--pose_scale', type=float, default=None)
     args.add_argument('--device', type=int, default=0)
 
     args.add_argument('--name', type=str, default='face_recon', help='name of the experiment. It decides where to store samples and models')

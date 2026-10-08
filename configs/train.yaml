@@ -1,0 +1,47 @@
+# Paths are resolved from the repository root. Copy this file for your dataset.
+hparams: hparams.yaml
+train_manifest: data/prepared/train.jsonl
+val_manifest: data/prepared/val.jsonl
+statistics: data/prepared/mean_std
+output: weights/retrained
+seed: 1234
+workers: 4
+max_frames: 256
+clip_gradient: 1.0
+expression:
+  epochs: 100
+  batch_size: 8
+  learning_rate: 0.001
+  weight_decay: 0.0001
+  scheduler_step: 20
+  scheduler_gamma: 0.7
+  # scratch trains the existing GST jointly; pretrained freezes Mellotron GST.
+  gst_init: scratch
+  loss_profile: coefficients
+  coefficient_weight: 0.5
+  delta_weight: 1.0
+  # Optional visual fine-tuning requires PIRender, BFM and expression-loss assets.
+  pirender_weight: weights/pirender.pt
+  bfm_folder: deep3d/BFM
+  emotion_weight: data/ResNet50/checkpoints/deca-epoch=01-val_loss_total/dataloader_idx_0=1.27607644.ckpt
+  frames_per_clip: 4
+  landmark_weight: 0.0001
+  lip_delta_weight: 0.5
+  emotion_loss_weight: 100.0
+  image_weight: 0.0
+vqvae:
+  epochs: 500
+  batch_size: 256
+  learning_rate: 0.0001
+  weight_decay: 0.1
+  scheduler_step: 100
+  scheduler_gamma: 0.5
+  embedding_loss_weight: 5.0
+sampler:
+  epochs: 500
+  batch_size: 8
+  learning_rate: 0.0004
+  weight_decay: 0.03
+  scheduler_step: 30
+  scheduler_gamma: 0.8
+  vqvae_weight: weights/retrained/vqvae/best-inference.pth

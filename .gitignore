@@ -21,3 +21,4 @@ PSFRGAN/
 *.pth
 *.pt
 *.ckpt
+gfpgan/weights/

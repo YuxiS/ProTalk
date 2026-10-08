@@ -201,15 +201,21 @@ class VectorQuantizerEMA(nn.Module):
         z_q = torch.matmul(min_encodings, self.embedding.weight).view(z.shape)  #(n*8,128)*(128,64)->(n*8,64)->(n,8,64)
 
         if istrain:
+            counts = torch.sum(min_encodings, 0)
+            dw = torch.matmul(min_encodings.t(), z_flattened)
+            if getattr(self, 'sync_ema', False):
+                if not torch.distributed.is_initialized():
+                    raise RuntimeError('sync_ema requires an initialized process group')
+                torch.distributed.all_reduce(counts)
+                torch.distributed.all_reduce(dw)
             # EMA updates are state updates, not newly allocated optimizer parameters.
             with torch.no_grad():
                 self.ema_cluster_size.mul_(self.decay).add_(
-                    torch.sum(min_encodings, 0), alpha=1 - self.decay)
+                    counts, alpha=1 - self.decay)
                 n = self.ema_cluster_size.sum()
                 smoothed = ((self.ema_cluster_size + self.epsilon) /
                             (n + self.n_e * self.epsilon) * n)
                 self.ema_cluster_size.copy_(smoothed)
-                dw = torch.matmul(min_encodings.t(), z_flattened)
                 self.ema_w.mul_(self.decay).add_(dw, alpha=1 - self.decay)
                 self.embedding.weight.copy_(self.ema_w / self.ema_cluster_size.unsqueeze(1))
 

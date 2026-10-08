@@ -150,7 +150,7 @@ def inference(opts):
         hparams.mean_std_root = args.mfcc_mean_std_root
     energy_processor = Energy(hparams.filter_length, hparams.hop_length, hparams.win_length)
     for path in (ref_data['ref_img'], ref_data['ref_audio'], args.model_weight,
-                 args.vae_weight, args.sampling_weight, args.pirender_weight, hparams.gst_weight):
+                 args.vae_weight, args.sampling_weight, args.pirender_weight):
         if not os.path.isfile(path):
             raise FileNotFoundError(f"Required asset missing: {path}")
     if not torch.cuda.is_available():
@@ -158,10 +158,10 @@ def inference(opts):
     torch.cuda.set_device(int(device_id))
     device = torch.device(f"cuda:{device_id}")
     os.makedirs(args.save_dir, exist_ok=True)
-    audio_exp_model = ProsoResNet(hparams, 244, 2, 64)
-    audio_exp_model.load_state_dict(torch.load(args.model_weight,
-                                                map_location='cpu')['audio_model'])
-    pose_sampler = PoseGEN(hparams.PoseModel.in_dim, 1024,
+    audio_exp_model = ProsoResNet(hparams, 244, 2, 64, load_gst=False)
+    expression_checkpoint = torch.load(args.model_weight, map_location='cpu')
+    audio_exp_model.load_state_dict(expression_checkpoint['audio_model'])
+    pose_sampler = PoseGEN(hparams.PoseModel.in_dim, hparams.PoseModel.n_embeddings,
         hparams.PoseModel.embedding_dim, hparams.PoseModel.n_hiddens, hparams.PoseModel.pose_dim,
         hparams.PoseModel.beta,
         args.vae_weight,
@@ -169,7 +169,7 @@ def inference(opts):
     pirender = PIRenderFaceGenerator()
     pirender.load_state_dict(torch.load(args.pirender_weight, map_location='cpu')['net_G_ema'])
     coeff_detector = CoeffDetector(args)
-    keypoint_detector = KeypointExtractor()
+    keypoint_detector = KeypointExtractor(device=f'cuda:{device_id}')
     base_coeff = getInitCoeff(ref_data['ref_img'], keypoint_detector, coeff_detector)
     base_3d_coeff, base_crop_coeff = base_coeff['Coeff'], base_coeff['Trans'][None, :]
     base_3d_coeff = torch.from_numpy(base_3d_coeff).to(device)

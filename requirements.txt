@@ -14,7 +14,7 @@ Pillow<11
 face-alignment==1.3.5
 einops
 easyDict
-kornia
+kornia==0.6.12
 tqdm
 av
 matplotlib

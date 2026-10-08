@@ -195,7 +195,8 @@ class ResNet(nn.Module):
         return x
 
 class ProsoResNet(nn.Module):
-    def __init__(self, hparams, mel_channels, pro_channels, out_channels, gst_channels=512):
+    def __init__(self, hparams, mel_channels, pro_channels, out_channels, gst_channels=512,
+                 load_gst=True, train_gst=False):
         super().__init__()
         self.hparams = hparams
         self.style_model=ProsoStyleEasy(pro_channels, hidden_dim=[512, 256, 256, 256])
@@ -218,7 +219,9 @@ class ProsoResNet(nn.Module):
         self.gst = GST(hparams)
         self.gst_transfrom = nn.Linear(hparams.token_embedding_size, 512)
         self.position_embedding = PositionalEncoder(512, max_seq_len=2048)
-        self.load_gst_weight()
+        self.train_gst = train_gst
+        if load_gst:
+            self.load_gst_weight()
         self.gst.eval()       
         for m in self.modules():
                 if isinstance(m, nn.Conv1d):
@@ -256,7 +259,7 @@ class ProsoResNet(nn.Module):
         self.gst.load_state_dict(gst_dict)
     
     def cal_gst_feature(self, mels, length):
-        with torch.no_grad():
+        with torch.set_grad_enabled(self.train_gst and torch.is_grad_enabled()):
             gst_embedding = self.gst(mels, torch.as_tensor(length, device=mels.device))
             gst_embedding = gst_embedding.repeat(1, mels.shape[1], 1) #（B, T）
             gst_embedding = self.gst_transfrom(gst_embedding)

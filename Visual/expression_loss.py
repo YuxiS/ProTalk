@@ -21,10 +21,10 @@ from Visual import resnet
 
 class ExpressionLossNet(nn.Module):
     """ Code borrowed from EMOCA https://github.com/radekd91/emoca """
-    def __init__(self):
+    def __init__(self, pretrained=True):
         super(ExpressionLossNet, self).__init__()
 
-        self.backbone = resnet.load_ResNet50Model() #out: 2048
+        self.backbone = resnet.load_ResNet50Model(pretrained=pretrained) #out: 2048
 
         self.linear = nn.Sequential(
             nn.Linear(2048, 10))

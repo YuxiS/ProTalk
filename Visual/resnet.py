@@ -171,9 +171,10 @@ def copy_parameter_from_resnet(model, resnet_dict):
     # import ipdb; ipdb.set_trace()
 
 
-def load_ResNet50Model():
+def load_ResNet50Model(pretrained=True):
     model = ResNet(Bottleneck, [3, 4, 6, 3])
-    copy_parameter_from_resnet(model, torchvision.models.resnet50(pretrained = True).state_dict())
+    if pretrained:
+        copy_parameter_from_resnet(model, torchvision.models.resnet50(pretrained=True).state_dict())
     return model
 
 def load_ResNet101Model():

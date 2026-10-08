@@ -1,0 +1,13 @@
+# Core training and synthetic smoke tests, without CUDA face rendering or EMOCA.
+-r requirements-test.txt
+torchvision==0.17.2
+torchaudio==2.2.2
+librosa==0.9.2
+numba==0.57.1
+Pillow<11
+einops
+tqdm
+# Data extraction/optional visual fine-tuning also need:
+opencv-python<4.12
+kornia==0.6.12
+scikit-image
